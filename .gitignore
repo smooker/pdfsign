@@ -1,0 +1,13 @@
+tmp/
+1/
+*.pdf
+*.odt
+*.png
+*.p12
+*.pem
+*.key
+*.cer
+*.jks
+__pycache__/
+*.pyc
+smoocheck.sh
