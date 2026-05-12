@@ -102,6 +102,14 @@ CERT_PEM=$(openssl x509 -inform DER -in "$CERT_DER_FILE" -outform PEM 2>/dev/nul
 export PDFSIGN_NAME=$(openssl x509 -inform DER -in "$CERT_DER_FILE" -noout -subject -nameopt utf8 2>/dev/null | grep -oP 'CN\s*=\s*\K[^,/]+' | head -1)
 export PDFSIGN_ISSUER=$(openssl x509 -inform DER -in "$CERT_DER_FILE" -noout -issuer -nameopt utf8 2>/dev/null | grep -oP 'O\s*=\s*\K[^,/]+' | head -1)
 export PDFSIGN_CERT_SN=$(openssl x509 -inform DER -in "$CERT_DER_FILE" -noout -serial 2>/dev/null | sed 's/serial=//')
+export PDFSIGN_CERT_SN_HEX="$PDFSIGN_CERT_SN"
+export PDFSIGN_CERT_SN_DEC=$(python3 -c "print(int('$PDFSIGN_CERT_SN', 16))" 2>/dev/null || echo "0")
+export PDFSIGN_EGN=$(openssl x509 -inform DER -in "$CERT_DER_FILE" -noout -subject -nameopt utf8 2>/dev/null | grep -oP 'serialNumber\s*=\s*\K[^,/]+' | head -1)
+export PDFSIGN_EMAIL=$(openssl x509 -inform DER -in "$CERT_DER_FILE" -noout -subject -nameopt utf8 2>/dev/null | grep -oP 'emailAddress\s*=\s*\K[^,/]+' | head -1)
+# Fallback: SAN email
+if [ -z "$PDFSIGN_EMAIL" ]; then
+    export PDFSIGN_EMAIL=$(openssl x509 -inform DER -in "$CERT_DER_FILE" -noout -ext subjectAltName 2>/dev/null | grep -oP 'email:\K[^\s,]+' | head -1)
+fi
 
 echo "Signing as: $PDFSIGN_NAME"
 echo "Issuer:     $PDFSIGN_ISSUER"
