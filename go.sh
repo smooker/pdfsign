@@ -130,8 +130,14 @@ python3 -c "import fpdf, PyPDF2, pyhanko, pkcs11" 2>/dev/null || {
 }
 
 echo "=== Step 1: Visual stamp ==="
-python3 "$SCRIPT_DIR/stamp.py" "$INPUT" "$STAMPED"
-[ -f "$STAMPED" ] || die "stamp.py failed to create $STAMPED"
+# Build native stamp (libqpdf) if missing.
+if [ ! -x "$SCRIPT_DIR/stamp" ] || [ "$SCRIPT_DIR/stamp.cpp" -nt "$SCRIPT_DIR/stamp" ]; then
+    echo "Building stamp (libqpdf)..."
+    ( cd "$SCRIPT_DIR" && make ) || die "build of stamp failed (need app-text/qpdf)"
+fi
+"$SCRIPT_DIR/stamp" "$INPUT" "$STAMPED" \
+    "$PDFSIGN_NAME" "$PDFSIGN_ISSUER" "$PDFSIGN_CERT_SN"
+[ -f "$STAMPED" ] || die "stamp failed to create $STAMPED"
 echo "OK: $STAMPED"
 
 echo "=== Step 2: Info page ==="
