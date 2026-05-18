@@ -1,16 +1,33 @@
 #!/bin/bash
-# Usage: ./go.sh input.pdf
-# Pipeline: input.pdf → stamp → info page → sign → output
+# Usage: ./go.sh <input.pdf>
+#   - If <input.pdf> is a bare name (no slash) and inbox/<name> exists,
+#     it is read from there.
+#   - Final signed PDF is written to outbox/ (auto-created).
+#   - Intermediate _stamped/_info files go to a temp dir and are removed.
+# Pipeline: input.pdf -> stamp -> info page -> sign -> outbox/<name>_signed.pdf
 die() { echo "ERROR: $1" >&2; exit 1; }
 
-INPUT="$1"
-[ -z "$INPUT" ] && die "Usage: $0 <input.pdf>"
-[ -f "$INPUT" ] || die "File not found: $INPUT"
+ARG="$1"
+[ -z "$ARG" ] && die "Usage: $0 <input.pdf>"
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-STAMPED="${INPUT%.pdf}_stamped.pdf"
-INFOED="${INPUT%.pdf}_info.pdf"
-SIGNED="${INPUT%.pdf}_signed.pdf"
+INBOX="$SCRIPT_DIR/inbox"
+OUTBOX="$SCRIPT_DIR/outbox"
+mkdir -p "$OUTBOX"
+
+# Resolve input: bare name -> inbox/, otherwise treat as path as given.
+if [[ "$ARG" != */* ]] && [ -f "$INBOX/$ARG" ]; then
+    INPUT="$INBOX/$ARG"
+else
+    INPUT="$ARG"
+fi
+[ -f "$INPUT" ] || die "File not found: $INPUT"
+
+BASE="$(basename "${INPUT%.pdf}")"
+WORKDIR="$(mktemp -d)"
+STAMPED="$WORKDIR/${BASE}_stamped.pdf"
+INFOED="$WORKDIR/${BASE}_info.pdf"
+SIGNED="$OUTBOX/${BASE}_signed.pdf"
 PKCS11_MODULE="/usr/lib64/opensc-pkcs11.so"
 
 # --- Check: pcscd ---
@@ -28,7 +45,7 @@ echo "Card: $TOKEN"
 # --- List certificates on card ---
 echo "Reading certificates from card..."
 TMPDIR=$(mktemp -d)
-trap "rm -rf $TMPDIR" EXIT
+trap 'rm -rf "$WORKDIR" "$TMPDIR"' EXIT
 
 OBJ_LIST=$(pkcs11-tool --module "$PKCS11_MODULE" --list-objects --type cert 2>&1)
 OBJ_RC=$?
@@ -150,8 +167,7 @@ python3 "$SCRIPT_DIR/pdfsign.py" "$INFOED" "$SIGNED"
 [ -f "$SIGNED" ] || die "pdfsign.py failed to create $SIGNED"
 echo "OK: $SIGNED"
 
-# Cleanup intermediate
-rm -f "$STAMPED" "$INFOED"
+# Intermediate files live in $WORKDIR which is auto-removed on EXIT.
 
 deactivate
 echo "=== Done: $SIGNED ==="
